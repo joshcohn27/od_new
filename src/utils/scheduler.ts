@@ -75,13 +75,17 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
   const { staff, nights, perNight } = config;
   const rng = makePrng(seed);
 
-  const weightedLoad: Record<string, number> = {};
+  // priorityLoad: used for candidate sorting; includes heavy penalty to deprioritize heavy-night assignees
+  // reportedLoad: actual night weights only, no penalty — this is what the UI shows and what scoring optimizes
+  const priorityLoad: Record<string, number> = {};
+  const reportedLoad: Record<string, number> = {};
   const rawCount: Record<string, number> = {};
   const byType: Record<string, Record<NightTypeId, number>> = {};
   const pairings: Record<string, Record<string, number>> = {};
 
   for (const s of staff) {
-    weightedLoad[s.id] = 0;
+    priorityLoad[s.id] = 0;
+    reportedLoad[s.id] = 0;
     rawCount[s.id] = 0;
     byType[s.id] = { closedMeeting: 0, closed: 0, open: 0, openHeavy: 0 };
     pairings[s.id] = {};
@@ -112,7 +116,7 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
     // Shuffle for randomness within equal-ranked groups, then sort by primary criteria
     candidates = shuffleArray(candidates, rng);
     candidates.sort((a, b) => {
-      const wDiff = weightedLoad[a.id] - weightedLoad[b.id];
+      const wDiff = priorityLoad[a.id] - priorityLoad[b.id];
       if (Math.abs(wDiff) > 0.001) return wDiff;
       return rawCount[a.id] - rawCount[b.id];
     });
@@ -132,7 +136,7 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
         const curr = remaining[bestIdx];
         const cand = remaining[i];
 
-        const wDiff = weightedLoad[curr.id] - weightedLoad[cand.id];
+        const wDiff = priorityLoad[curr.id] - priorityLoad[cand.id];
         if (Math.abs(wDiff) > 0.001) {
           if (wDiff > 0) bestIdx = i;
           continue;
@@ -156,10 +160,12 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
 
     if (selected.length < perNight) return null;
 
-    // Update load trackers; heavy nights get an extra penalty to deprioritize for future nights
     for (const s of selected) {
-      weightedLoad[s.id] += nightType.weight;
-      if (night.typeId === 'openHeavy') weightedLoad[s.id] += HEAVY_PENALTY;
+      // priorityLoad gets the heavy penalty so the algorithm deprioritizes this person going forward
+      priorityLoad[s.id] += nightType.weight;
+      if (night.typeId === 'openHeavy') priorityLoad[s.id] += HEAVY_PENALTY;
+      // reportedLoad tracks actual night weight only — no penalty — for the UI and scoring
+      reportedLoad[s.id] += nightType.weight;
       rawCount[s.id] += 1;
       byType[s.id][night.typeId] += 1;
     }
@@ -180,9 +186,14 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
     name: s.name,
     bunk: s.bunk,
     total: rawCount[s.id],
-    weightedTotal: Math.round(weightedLoad[s.id] * 100) / 100,
+    weightedTotal: Math.round(reportedLoad[s.id] * 100) / 100,
     byType: byType[s.id],
   }));
+
+  console.log(
+    '[scheduler] weightedTotals:',
+    Object.fromEntries(staff.map((s) => [s.name, Math.round(reportedLoad[s.id] * 100) / 100]))
+  );
 
   return { schedule: { assignments, stats, seed }, pairings };
 }
