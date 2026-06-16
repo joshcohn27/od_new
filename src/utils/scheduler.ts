@@ -87,12 +87,46 @@ interface ValidationResult {
 }
 
 /**
- * Filters pool down to whoever has the fewest assignments of this specific night type
- * so far. Only applied to SCARCE night types (closedMeeting, openHeavy) where there are
- * few enough occurrences that random clustering on one person is a real risk. For common
- * types (open, closed) the load-based sort already accounts for total burden correctly,
- * and narrowing the pool by raw type-count first can override a better load-based pick
- * — e.g. forcing someone with low "open" count but already-high overall load to the front.
+ * Heavy nights must be distributed by heavy-count FIRST.
+ *
+ * This prevents someone from getting a second openHeavy before another eligible
+ * person has gotten their first.
+ *
+ * Priority:
+ * 1. Fewest openHeavy nights
+ * 2. Lowest raw total nights
+ */
+function applyHeavyFairnessFilter(
+  pool: Staff[],
+  typeId: NightTypeId,
+  rawCount: Record<string, number>,
+  byType: Record<string, Record<NightTypeId, number>>,
+  minPoolSizeNeeded: number
+): Staff[] {
+  if (typeId !== 'openHeavy') return pool;
+  if (pool.length === 0) return pool;
+
+  const minHeavy = Math.min(...pool.map((s) => byType[s.id].openHeavy));
+  const heavyFiltered = pool.filter((s) => byType[s.id].openHeavy === minHeavy);
+
+  if (heavyFiltered.length < minPoolSizeNeeded) {
+    return pool;
+  }
+
+  const minRaw = Math.min(...heavyFiltered.map((s) => rawCount[s.id]));
+  const rawFiltered = heavyFiltered.filter((s) => rawCount[s.id] === minRaw);
+
+  return rawFiltered.length >= minPoolSizeNeeded ? rawFiltered : heavyFiltered;
+}
+
+/**
+ * Spreads each specific night type across the eligible pool.
+ *
+ * For normal open/closed nights, this helps prevent one person from getting
+ * clustered with too many of the same kind of night.
+ *
+ * For openHeavy, this is intentionally skipped because openHeavy already has
+ * stricter fairness rules in applyHeavyFairnessFilter.
  */
 function applyTypeSpreadFilter(
   pool: Staff[],
@@ -100,50 +134,87 @@ function applyTypeSpreadFilter(
   byType: Record<string, Record<NightTypeId, number>>,
   minPoolSizeNeeded: number
 ): Staff[] {
-  if (typeId !== 'closedMeeting' && typeId !== 'openHeavy') return pool;
+  if (pool.length === 0) return pool;
+  if (typeId === 'openHeavy') return pool;
+
   const minOfType = Math.min(...pool.map((s) => byType[s.id][typeId]));
   const typeFiltered = pool.filter((s) => byType[s.id][typeId] === minOfType);
+
   return typeFiltered.length >= minPoolSizeNeeded ? typeFiltered : pool;
 }
 
 /**
- * Finds the index of the best candidate in pool[], using weighted load → rawCount →
- * average pairings with already-selected staff as successive tiebreakers.
+ * Finds the index of the best candidate in pool[].
+ *
+ * For openHeavy:
+ * 1. Fewest heavy nights
+ * 2. Lowest raw total nights
+ * 3. Lowest weighted load
+ * 4. Least repeated pairings with already-selected staff
+ *
+ * For other night types:
+ * 1. Lowest weighted load
+ * 2. Lowest raw count
+ * 3. Fewest of this specific night type
+ * 4. Least repeated pairings with already-selected staff
  */
 function bestCandidateIdx(
   pool: Staff[],
   alreadySelected: Staff[],
   load: Record<string, number>,
   rawCount: Record<string, number>,
+  byType: Record<string, Record<NightTypeId, number>>,
+  typeId: NightTypeId,
   pairings: Record<string, Record<string, number>>
 ): number {
   let bestIdx = 0;
+
+  function pairingAvg(s: Staff): number {
+    if (alreadySelected.length === 0) return 0;
+    return (
+      alreadySelected.reduce((sum, sel) => sum + pairings[s.id][sel.id], 0) /
+      alreadySelected.length
+    );
+  }
+
+  function isBetter(cand: Staff, curr: Staff): boolean {
+    if (typeId === 'openHeavy') {
+      const heavyDiff = byType[cand.id].openHeavy - byType[curr.id].openHeavy;
+      if (heavyDiff !== 0) return heavyDiff < 0;
+
+      const rawDiff = rawCount[cand.id] - rawCount[curr.id];
+      if (rawDiff !== 0) return rawDiff < 0;
+
+      const loadDiff = load[cand.id] - load[curr.id];
+      if (Math.abs(loadDiff) > 0.001) return loadDiff < 0;
+
+      const pairDiff = pairingAvg(cand) - pairingAvg(curr);
+      if (Math.abs(pairDiff) > 0.001) return pairDiff < 0;
+
+      return false;
+    }
+
+    const loadDiff = load[cand.id] - load[curr.id];
+    if (Math.abs(loadDiff) > 0.001) return loadDiff < 0;
+
+    const rawDiff = rawCount[cand.id] - rawCount[curr.id];
+    if (rawDiff !== 0) return rawDiff < 0;
+
+    const typeDiff = byType[cand.id][typeId] - byType[curr.id][typeId];
+    if (typeDiff !== 0) return typeDiff < 0;
+
+    const pairDiff = pairingAvg(cand) - pairingAvg(curr);
+    if (Math.abs(pairDiff) > 0.001) return pairDiff < 0;
+
+    return false;
+  }
+
   for (let i = 1; i < pool.length; i++) {
-    const curr = pool[bestIdx];
-    const cand = pool[i];
-
-    const wDiff = load[curr.id] - load[cand.id];
-    if (Math.abs(wDiff) > 0.001) {
-      if (wDiff > 0) bestIdx = i;
-      continue;
-    }
-
-    const cDiff = rawCount[curr.id] - rawCount[cand.id];
-    if (cDiff !== 0) {
-      if (cDiff > 0) bestIdx = i;
-      continue;
-    }
-
-    if (alreadySelected.length > 0) {
-      const avgCurr =
-        alreadySelected.reduce((sum, sel) => sum + pairings[curr.id][sel.id], 0) /
-        alreadySelected.length;
-      const avgCand =
-        alreadySelected.reduce((sum, sel) => sum + pairings[cand.id][sel.id], 0) /
-        alreadySelected.length;
-      if (avgCand < avgCurr) bestIdx = i;
+    if (isBetter(pool[i], pool[bestIdx])) {
+      bestIdx = i;
     }
   }
+
   return bestIdx;
 }
 
@@ -151,7 +222,6 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
   const { staff, nights, perNight, bunkRestriction } = config;
   const rng = makePrng(seed);
 
-  // Single load accumulator = nightType.weight per night assigned.
   const load: Record<string, number> = {};
   const rawCount: Record<string, number> = {};
   const byType: Record<string, Record<NightTypeId, number>> = {};
@@ -170,18 +240,20 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
   for (const night of nights) {
     const nightType = NIGHT_TYPE_MAP[night.typeId];
 
-    // allStaffOnDuty nights (e.g. arrival day): assign everyone, skip all load accounting.
+    // allStaffOnDuty nights, such as arrival day: assign everyone, skip all load accounting.
     if (night.allStaffOnDuty) {
       assignments.push({ night, assigned: [...staff] });
       continue;
     }
 
-    // Block anyone assigned in the previous 2 non-allStaff nights (no-consecutive constraint)
+    // Block anyone assigned in the previous 2 non-allStaff nights.
     const prevScored = assignments.filter((a) => !a.night.allStaffOnDuty);
     const blocked = new Set<string>();
+
     if (prevScored.length >= 1) {
       for (const s of prevScored[prevScored.length - 1].assigned) blocked.add(s.id);
     }
+
     if (prevScored.length >= 2) {
       for (const s of prevScored[prevScored.length - 2].assigned) blocked.add(s.id);
     }
@@ -189,36 +261,70 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
     const selected: Staff[] = [];
 
     if (bunkRestriction) {
-      // Randomize slot order each night to prevent slot 1 always getting first pick
+      // Randomize slot order each night to prevent slot 1 always getting first pick.
       const slotOrder = shuffleArray(
         Array.from({ length: perNight }, (_, i) => i + 1),
         rng
       );
+
       const slotPick: Record<number, Staff> = {};
 
       for (const slot of slotOrder) {
         const alreadyPicked = Object.values(slotPick);
 
         let pool = staff.filter((s) => getBunkNumber(s.bunk) === slot && !blocked.has(s.id));
-        if (pool.length === 0) pool = staff.filter((s) => getBunkNumber(s.bunk) === slot);
+
+        // If the no-consecutive block makes this slot impossible, relax the block.
+        if (pool.length === 0) {
+          pool = staff.filter((s) => getBunkNumber(s.bunk) === slot);
+        }
+
         if (pool.length === 0) return null;
 
-        // Spread THIS night type evenly within the slot's eligible pool first —
-        // applies to closedMeeting/closed/open/openHeavy uniformly.
+        // Heavy nights: fewest heavy nights first, then lowest raw total.
+        pool = applyHeavyFairnessFilter(pool, night.typeId, rawCount, byType, 1);
+
+        // Other night types: spread specific type count.
         pool = applyTypeSpreadFilter(pool, night.typeId, byType, 1);
 
         pool = shuffleArray(pool, rng);
+
         pool.sort((a, b) => {
+          if (night.typeId === 'openHeavy') {
+            const heavyDiff = byType[a.id].openHeavy - byType[b.id].openHeavy;
+            if (heavyDiff !== 0) return heavyDiff;
+
+            const rawDiff = rawCount[a.id] - rawCount[b.id];
+            if (rawDiff !== 0) return rawDiff;
+          }
+
           const wDiff = load[a.id] - load[b.id];
           if (Math.abs(wDiff) > 0.001) return wDiff;
-          return rawCount[a.id] - rawCount[b.id];
+
+          const countDiff = rawCount[a.id] - rawCount[b.id];
+          if (countDiff !== 0) return countDiff;
+
+          return byType[a.id][night.typeId] - byType[b.id][night.typeId];
         });
 
         const minCount = Math.min(...pool.map((s) => rawCount[s.id]));
-        const slotFiltered = pool.filter((s) => rawCount[s.id] <= minCount + 1);
+        const slotFiltered =
+          night.typeId === 'openHeavy'
+            ? pool
+            : pool.filter((s) => rawCount[s.id] <= minCount + 1);
+
         const slotPool = slotFiltered.length >= 1 ? slotFiltered : pool;
 
-        const idx = bestCandidateIdx(slotPool, alreadyPicked, load, rawCount, pairings);
+        const idx = bestCandidateIdx(
+          slotPool,
+          alreadyPicked,
+          load,
+          rawCount,
+          byType,
+          night.typeId,
+          pairings
+        );
+
         slotPick[slot] = slotPool[idx];
       }
 
@@ -227,26 +333,64 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
       }
     } else {
       let candidates: Staff[] = staff.filter((s) => !blocked.has(s.id));
-      if (candidates.length < perNight) candidates = [...staff];
 
-      // Spread THIS night type evenly across the combined pool first —
-      // applies to closedMeeting/closed/open/openHeavy uniformly.
+      // If the no-consecutive block makes the night impossible, relax the block.
+      if (candidates.length < perNight) {
+        candidates = [...staff];
+      }
+
+      // Heavy nights: fewest heavy nights first, then lowest raw total.
+      candidates = applyHeavyFairnessFilter(
+        candidates,
+        night.typeId,
+        rawCount,
+        byType,
+        perNight
+      );
+
+      // Other night types: spread specific type count.
       candidates = applyTypeSpreadFilter(candidates, night.typeId, byType, perNight);
 
       candidates = shuffleArray(candidates, rng);
+
       candidates.sort((a, b) => {
+        if (night.typeId === 'openHeavy') {
+          const heavyDiff = byType[a.id].openHeavy - byType[b.id].openHeavy;
+          if (heavyDiff !== 0) return heavyDiff;
+
+          const rawDiff = rawCount[a.id] - rawCount[b.id];
+          if (rawDiff !== 0) return rawDiff;
+        }
+
         const wDiff = load[a.id] - load[b.id];
         if (Math.abs(wDiff) > 0.001) return wDiff;
-        return rawCount[a.id] - rawCount[b.id];
+
+        const countDiff = rawCount[a.id] - rawCount[b.id];
+        if (countDiff !== 0) return countDiff;
+
+        return byType[a.id][night.typeId] - byType[b.id][night.typeId];
       });
 
       const minCount = Math.min(...candidates.map((s) => rawCount[s.id]));
-      const countFiltered = candidates.filter((s) => rawCount[s.id] <= minCount + 1);
-      const pool = countFiltered.length >= perNight ? countFiltered : candidates;
+      const countFiltered =
+        night.typeId === 'openHeavy'
+          ? candidates
+          : candidates.filter((s) => rawCount[s.id] <= minCount + 1);
 
+      const pool = countFiltered.length >= perNight ? countFiltered : candidates;
       const remaining = [...pool];
+
       while (selected.length < perNight && remaining.length > 0) {
-        const idx = bestCandidateIdx(remaining, selected, load, rawCount, pairings);
+        const idx = bestCandidateIdx(
+          remaining,
+          selected,
+          load,
+          rawCount,
+          byType,
+          night.typeId,
+          pairings
+        );
+
         selected.push(remaining.splice(idx, 1)[0]!);
       }
     }
@@ -287,36 +431,36 @@ function validateSchedule(schedule: GeneratedSchedule, config: ScheduleConfig): 
   let hardFail = false;
   let qualityFail = false;
 
-  // (a) Global weighted spread across all staff, compared against an ACHIEVABLE floor.
-  // When bunkRestriction is on and bunk groups have unequal sizes, smaller groups will
-  // always average higher per-capita load — that's a structural fact, not unfairness the
-  // algorithm can fix. We estimate that unavoidable floor from group-size ratios and only
-  // flag spread that exceeds it by a real margin.
+  // (a) Global weighted spread across all staff, compared against an achievable floor.
   const weights = schedule.stats.map((s) => s.weightedTotal);
   const weightSpread = weights.length > 0 ? Math.max(...weights) - Math.min(...weights) : 0;
 
-  let achievableFloor = 0.5; // baseline tolerance for any schedule
+  let achievableFloor = 0.5;
+
   if (bunkRestriction) {
     const groupSizes = new Map<number, number>();
+
     for (const s of staff) {
       const n = getBunkNumber(s.bunk);
       groupSizes.set(n, (groupSizes.get(n) ?? 0) + 1);
     }
+
     const sizes = Array.from(groupSizes.values());
+
     if (sizes.length > 1) {
       const totalWeight = schedule.stats.reduce((a, s) => a + s.weightedTotal, 0);
       const avgWeight = totalWeight / schedule.stats.length;
       const maxSize = Math.max(...sizes);
       const minSize = Math.min(...sizes);
-      // Smaller group's per-person share scales up by (maxSize/minSize) relative to average.
+
       const structuralGap = avgWeight * (maxSize / minSize - 1);
-      achievableFloor = Math.max(achievableFloor, structuralGap * 1.15); // small buffer
+      achievableFloor = Math.max(achievableFloor, structuralGap * 1.15);
     }
   }
 
-  if (weightSpread >= achievableFloor) {
+  if (weightSpread > achievableFloor) {
     messages.push(
-      `[a] FAIL: weighted spread ${weightSpread.toFixed(3)} >= achievable floor ${achievableFloor.toFixed(3)}`
+      `[a] FAIL: weighted spread ${weightSpread.toFixed(3)} > achievable floor ${achievableFloor.toFixed(3)}`
     );
     qualityFail = true;
   } else {
@@ -325,61 +469,119 @@ function validateSchedule(schedule: GeneratedSchedule, config: ScheduleConfig): 
     );
   }
 
-  // (c) No consecutive night assignments — hard fail if violated (allStaffOnDuty nights excluded)
+  // (b) Heavy-night fairness: no 2-vs-0 style outcomes.
+  const heavyCounts = schedule.stats.map((s) => s.byType.openHeavy);
+  const heavySpread =
+    heavyCounts.length > 0 ? Math.max(...heavyCounts) - Math.min(...heavyCounts) : 0;
+
+  if (heavySpread > 1) {
+    messages.push(`[b] FAIL: openHeavy spread ${heavySpread} > 1`);
+    qualityFail = true;
+  } else {
+    messages.push(`[b] PASS: openHeavy spread ${heavySpread}`);
+  }
+
+  // (c) If heavy counts are tied/balanced, heavy should lean toward lower raw totals.
+  const heavyPeople = schedule.stats.filter((s) => s.byType.openHeavy > 0);
+  const noHeavyPeople = schedule.stats.filter((s) => s.byType.openHeavy === 0);
+
+  if (heavyPeople.length > 0 && noHeavyPeople.length > 0) {
+    const maxHeavyRaw = Math.max(...heavyPeople.map((s) => s.total));
+    const minNoHeavyRaw = Math.min(...noHeavyPeople.map((s) => s.total));
+
+    if (maxHeavyRaw > minNoHeavyRaw + 1) {
+      messages.push(
+        `[b2] WARN: someone with a heavy night has ${maxHeavyRaw} total nights while someone with no heavy nights has ${minNoHeavyRaw}`
+      );
+      qualityFail = true;
+    } else {
+      messages.push('[b2] PASS: heavy nights are on the lower/fair end of raw totals');
+    }
+  } else {
+    messages.push('[b2] PASS: heavy raw-total check not needed');
+  }
+
+  // (d) No consecutive night assignments — hard fail if violated.
   const scoredAssignments = schedule.assignments.filter((a) => !a.night.allStaffOnDuty);
   let consecViolated = false;
+
   for (let i = 1; i < scoredAssignments.length; i++) {
     const prev = scoredAssignments[i - 1];
     const curr = scoredAssignments[i];
     const prevIds = new Set(prev.assigned.map((s) => s.id));
+
     for (const s of curr.assigned) {
       if (prevIds.has(s.id)) {
         messages.push(
-          `[c] FAIL: ${s.name} in consecutive nights "${prev.night.label}" and "${curr.night.label}"`
+          `[d] FAIL: ${s.name} in consecutive nights "${prev.night.label}" and "${curr.night.label}"`
         );
         hardFail = true;
         consecViolated = true;
       }
     }
   }
-  if (!consecViolated) messages.push('[c] PASS: no consecutive night assignments');
 
-  // (d) Slot integrity: assigned[i] must have getBunkNumber(bunk) === i+1 — hard fail if violated
+  if (!consecViolated) {
+    messages.push('[d] PASS: no consecutive night assignments');
+  }
+
+  // (e) Slot integrity: assigned[i] must have getBunkNumber(bunk) === i + 1.
   if (bunkRestriction) {
     let slotViolated = false;
+
     for (const { night, assigned } of scoredAssignments) {
       for (let idx = 0; idx < assigned.length; idx++) {
         const s = assigned[idx];
         const expectedSlot = idx + 1;
+
         if (getBunkNumber(s.bunk) !== expectedSlot) {
           messages.push(
-            `[d] FAIL: ${s.name} (bunk ${s.bunk}) in slot ${expectedSlot} on "${night.label}"`
+            `[e] FAIL: ${s.name} (bunk ${s.bunk}) in slot ${expectedSlot} on "${night.label}"`
           );
           hardFail = true;
           slotViolated = true;
         }
       }
     }
-    if (!slotViolated) messages.push('[d] PASS: slot integrity');
+
+    if (!slotViolated) {
+      messages.push('[e] PASS: slot integrity');
+    }
   }
 
-  // (e) Count balance: flag spread > 2, fail > 3
+  // (f) Count balance: flag spread > 2, fail > 3.
   const counts = schedule.stats.map((s) => s.total);
   const countSpread = counts.length > 0 ? Math.max(...counts) - Math.min(...counts) : 0;
+
   if (countSpread > 3) {
-    messages.push(`[e] FAIL: raw count spread ${countSpread} > 3`);
+    messages.push(`[f] FAIL: raw count spread ${countSpread} > 3`);
     qualityFail = true;
   } else if (countSpread > 2) {
-    messages.push(`[e] WARN: raw count spread ${countSpread} > 2`);
+    messages.push(`[f] WARN: raw count spread ${countSpread} > 2`);
     qualityFail = true;
   } else {
-    messages.push(`[e] PASS: raw count spread ${countSpread}`);
+    messages.push(`[f] PASS: raw count spread ${countSpread}`);
+  }
+
+  // (g) Type balance: open and closed should be spread as evenly as possible.
+  for (const typeId of ['closed', 'open'] as NightTypeId[]) {
+    const typeCounts = schedule.stats.map((s) => s.byType[typeId]);
+    const spread =
+      typeCounts.length > 0 ? Math.max(...typeCounts) - Math.min(...typeCounts) : 0;
+
+    const label = NIGHT_TYPE_MAP[typeId].label;
+
+    if (spread > 2) {
+      messages.push(`[g] WARN: ${label} spread ${spread} > 2`);
+      qualityFail = true;
+    } else {
+      messages.push(`[g] PASS: ${label} spread ${spread}`);
+    }
   }
 
   return { passed: !hardFail && !qualityFail, hardFail, messages };
 }
 
-// Single source of truth: minimize variance of weightedTotal across all staff.
 function scoreSchedule(
   schedule: GeneratedSchedule,
   pairings: Record<string, Record<string, number>>
@@ -387,28 +589,67 @@ function scoreSchedule(
   const weightVariance = safeVariance(schedule.stats.map((s) => s.weightedTotal));
   const countVariance = safeVariance(schedule.stats.map((s) => s.total));
 
+  const openVariance = safeVariance(schedule.stats.map((s) => s.byType.open));
+  const closedVariance = safeVariance(schedule.stats.map((s) => s.byType.closed));
+  const heavyVariance = safeVariance(schedule.stats.map((s) => s.byType.openHeavy));
+
   let pairingPenalty = 0;
   const seen = new Set<string>();
+
   for (const a in pairings) {
     for (const b in pairings[a]) {
       const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+
       if (!seen.has(key)) {
         seen.add(key);
+
         const count = pairings[a][b];
         if (count > 1) pairingPenalty += (count - 1) ** 2;
       }
     }
   }
 
-  return weightVariance * 4 + countVariance * 2 + pairingPenalty * 1.5;
+  // Massive penalty for 2-vs-0 heavy outcomes.
+  const heavyCounts = schedule.stats.map((s) => s.byType.openHeavy);
+  const heavySpread =
+    heavyCounts.length > 0 ? Math.max(...heavyCounts) - Math.min(...heavyCounts) : 0;
+
+  const heavySpreadPenalty = heavySpread > 1 ? (heavySpread - 1) ** 2 : 0;
+
+  // Smaller penalty when heavy nights land on people with clearly higher raw counts.
+  let heavyRawPenalty = 0;
+  const heavyPeople = schedule.stats.filter((s) => s.byType.openHeavy > 0);
+  const noHeavyPeople = schedule.stats.filter((s) => s.byType.openHeavy === 0);
+
+  for (const heavy of heavyPeople) {
+    for (const noHeavy of noHeavyPeople) {
+      if (heavy.total > noHeavy.total + 1) {
+        heavyRawPenalty += (heavy.total - noHeavy.total - 1) ** 2;
+      }
+    }
+  }
+
+  return (
+    weightVariance * 4 +
+    countVariance * 3 +
+    openVariance * 1.5 +
+    closedVariance * 1.25 +
+    heavyVariance * 8 +
+    heavySpreadPenalty * 100 +
+    heavyRawPenalty * 8 +
+    pairingPenalty * 1.5
+  );
 }
 
-export function generateSchedule(config: ScheduleConfig, runs = 800): GeneratedSchedule {
+export function generateSchedule(config: ScheduleConfig, runs = 1200): GeneratedSchedule {
   const { staff, nights, perNight, bunkRestriction } = config;
 
-  // DIAGNOSTIC: input shape
-  const heavyNightCount = nights.filter((n) => !n.allStaffOnDuty && n.typeId === 'openHeavy').length;
+  const heavyNightCount = nights.filter(
+    (n) => !n.allStaffOnDuty && n.typeId === 'openHeavy'
+  ).length;
+
   console.log(`[diag] ${nights.length} total nights, ${heavyNightCount} openHeavy`);
+
   if (bunkRestriction) {
     for (let slot = 1; slot <= perNight; slot++) {
       const g = staff.filter((s) => getBunkNumber(s.bunk) === slot);
@@ -421,7 +662,7 @@ export function generateSchedule(config: ScheduleConfig, runs = 800): GeneratedS
       if (!staff.some((s) => getBunkNumber(s.bunk) === slot)) {
         throw new Error(
           `No staff in bunk number ${slot}. Add staff whose bunk name ends in ${slot} ` +
-          `(e.g. M${slot}, O${slot}, S${slot}), or turn off bunk restriction.`
+            `(e.g. M${slot}, O${slot}, S${slot}), or turn off bunk restriction.`
         );
       }
     }
@@ -430,15 +671,18 @@ export function generateSchedule(config: ScheduleConfig, runs = 800): GeneratedS
   let cleanPasses = 0;
   let fallbackPasses = 0;
   let hardFails = 0;
+
   let bestQuality: { schedule: GeneratedSchedule; score: number } | null = null;
   let bestFallback: { schedule: GeneratedSchedule; score: number } | null = null;
 
   for (let i = 0; i < runs; i++) {
     const seed = Math.floor(Math.random() * 2 ** 32);
     const result = runOnce(config, seed);
+
     if (!result) continue;
 
     const validation = validateSchedule(result.schedule, config);
+
     if (validation.hardFail) {
       hardFails++;
       continue;
@@ -448,11 +692,13 @@ export function generateSchedule(config: ScheduleConfig, runs = 800): GeneratedS
 
     if (validation.passed) {
       cleanPasses++;
+
       if (!bestQuality || score < bestQuality.score) {
         bestQuality = { schedule: result.schedule, score };
       }
     } else {
       fallbackPasses++;
+
       if (!bestFallback || score < bestFallback.score) {
         bestFallback = { schedule: result.schedule, score };
       }
@@ -464,23 +710,30 @@ export function generateSchedule(config: ScheduleConfig, runs = 800): GeneratedS
   );
 
   const best = bestQuality ?? bestFallback;
-  if (!best) throw new Error('Could not generate a valid schedule. Check staff count vs. nights.');
 
-  // DIAGNOSTIC: winning run breakdown, full byType included
+  if (!best) {
+    throw new Error('Could not generate a valid schedule. Check staff count vs. nights.');
+  }
+
   console.log('[diag] Winning run (by weightedTotal desc):');
+
   [...best.schedule.stats]
     .sort((a, b) => b.weightedTotal - a.weightedTotal)
     .forEach((s) =>
       console.log(
         `  ${s.name} (${s.bunk}): mtg=${s.byType.closedMeeting} closed=${s.byType.closed} ` +
-        `open=${s.byType.open} heavy=${s.byType.openHeavy} | ${s.total} nights, ${s.weightedTotal.toFixed(2)} wt`
+          `open=${s.byType.open} heavy=${s.byType.openHeavy} | ${s.total} nights, ${s.weightedTotal.toFixed(
+            2
+          )} wt`
       )
     );
 
   const finalValidation = validateSchedule(best.schedule, config);
+
   if (!finalValidation.passed) {
     console.warn('[scheduler] No fully valid schedule found. Best available result returned.');
   }
+
   console.log('[scheduler] Final validation:\n' + finalValidation.messages.join('\n'));
 
   return best.schedule;
@@ -488,11 +741,14 @@ export function generateSchedule(config: ScheduleConfig, runs = 800): GeneratedS
 
 export function exportToCSV(schedule: GeneratedSchedule, perNight: number): string {
   const headers = ['Day', 'Type', ...Array.from({ length: perNight }, (_, i) => `OD ${i + 1}`)];
+
   const rows = schedule.assignments.map(({ night, assigned }, idx) => {
     const dayLabel = `Day ${idx + 1}${night.label ? ` — ${night.label}` : ''}`;
+
     if (night.allStaffOnDuty) {
       return [dayLabel, 'All staff on duty', ...Array<string>(perNight).fill('')];
     }
+
     const type = NIGHT_TYPE_MAP[night.typeId].label;
     return [dayLabel, type, ...assigned.map((s) => s.name)];
   });
@@ -500,5 +756,6 @@ export function exportToCSV(schedule: GeneratedSchedule, perNight: number): stri
   const csvRows = [headers, ...rows].map((row) =>
     row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
   );
+
   return csvRows.join('\n');
 }
