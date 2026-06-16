@@ -87,6 +87,17 @@
   letter-spacing: 0;
 }
 
+.bunkHint {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-muted);
+  text-transform: none;
+  letter-spacing: 0;
+  max-width: 320px;
+}
+
 .rosterSection {
   display: flex;
   flex-direction: column;
