@@ -41,7 +41,9 @@
   cursor: pointer;
 }
 
-.regenBtn:hover { background: var(--color-card); }
+.regenBtn:hover {
+  background: var(--color-card);
+}
 
 .exportBtn {
   padding: 0.5rem 1rem;
@@ -54,7 +56,9 @@
   cursor: pointer;
 }
 
-.exportBtn:hover { opacity: 0.88; }
+.exportBtn:hover {
+  opacity: 0.88;
+}
 
 /* Tabs */
 .tabs {
@@ -128,12 +132,25 @@
   border-bottom: 1px solid var(--color-border);
 }
 
-.schedTable tbody tr:last-child { border-bottom: none; }
-.schedTable tbody tr:hover { background: #f9fafb; }
+.schedTable tbody tr:last-child {
+  border-bottom: none;
+}
 
-.nightCol { width: 120px; }
-.typeCol  { width: 90px; }
-.odCol    { min-width: 130px; }
+.schedTable tbody tr:hover {
+  background: #f9fafb;
+}
+
+.nightCol {
+  width: 120px;
+}
+
+.typeCol {
+  width: 90px;
+}
+
+.odCol {
+  min-width: 130px;
+}
 
 .nightLabel {
   padding: 0.5rem 0.75rem;
@@ -143,7 +160,9 @@
   white-space: nowrap;
 }
 
-.schedTable td { padding: 0.4rem 0.75rem; }
+.schedTable td {
+  padding: 0.4rem 0.75rem;
+}
 
 /* Pills */
 .pill {
@@ -157,14 +176,35 @@
   white-space: nowrap;
 }
 
-.pill-meeting  { background: #dbeafe; color: #1d4ed8; }
-.pill-closed   { background: #fce7f3; color: #9d174d; }
-.pill-open     { background: #d1fae5; color: #065f46; }
-.pill-heavy    { background: #fef3c7; color: #92400e; }
-.pill-allstaff { background: #f3f4f6; color: #6b7280; }
+.pill-meeting {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.pill-closed {
+  background: #fce7f3;
+  color: #9d174d;
+}
+
+.pill-open {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.pill-heavy {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.pill-allstaff {
+  background: #f3f4f6;
+  color: #6b7280;
+}
 
 /* All-staff-on-duty rows */
-.allStaffNightRow { background: #f9fafb; }
+.allStaffNightRow {
+  background: #f9fafb;
+}
 
 .allStaffCell {
   padding: 0.5rem 0.75rem;
@@ -180,9 +220,13 @@
   transition: background 0.1s;
 }
 
-.staffCell:hover { background: #eff6ff; }
+.staffCell:hover {
+  background: #eff6ff;
+}
 
-.cellActive { background: #dbeafe !important; }
+.cellActive {
+  background: #dbeafe !important;
+}
 
 .staffName {
   display: block;
@@ -207,7 +251,9 @@
   margin-bottom: 0.25rem;
 }
 
-.spreadLabel { color: var(--color-muted); }
+.spreadLabel {
+  color: var(--color-muted);
+}
 
 .spreadValue {
   font-family: var(--font-mono);
@@ -215,8 +261,13 @@
   font-weight: 700;
 }
 
-.spreadOk   { color: var(--color-green); }
-.spreadWarn { color: var(--color-amber); }
+.spreadOk {
+  color: var(--color-green);
+}
+
+.spreadWarn {
+  color: var(--color-amber);
+}
 
 .spreadHint {
   font-size: 0.8125rem;
@@ -242,9 +293,24 @@
   white-space: nowrap;
 }
 
-.fairTable tbody tr { border-bottom: 1px solid var(--color-border); }
-.fairTable tbody tr:last-child { border-bottom: none; }
-.fairTable td { padding: 0.45rem 0.75rem; vertical-align: middle; }
+.fairTable tbody tr {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fairTable tbody tr:last-child {
+  border-bottom: none;
+}
+
+.fairTable td {
+  padding: 0.45rem 0.75rem;
+  vertical-align: middle;
+}
+
+.fairTable th:nth-child(4),
+.fairTable td:nth-child(4) {
+  min-width: 210px;
+  width: 210px;
+}
 
 .statName {
   font-weight: 600;
@@ -265,22 +331,31 @@
 }
 
 .barCell {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) 56px;
   align-items: center;
-  gap: 0.625rem;
-  min-width: 130px;
+  gap: 0.75rem;
+  min-width: 180px;
 }
 
 .bar {
-  height: 6px;
+  height: 8px;
   border-radius: 99px;
   background: var(--color-green);
   min-width: 2px;
+  max-width: 100%;
   transition: width 0.3s;
-  flex-shrink: 0;
+  justify-self: start;
 }
 
-.typeCount { text-align: center; }
+.barCell .mono {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.typeCount {
+  text-align: center;
+}
 
 /* Override modal */
 .modalOverlay {
@@ -329,7 +404,9 @@
   border-radius: 3px;
 }
 
-.modalClose:hover { color: var(--color-red); }
+.modalClose:hover {
+  color: var(--color-red);
+}
 
 .modalBody {
   overflow-y: auto;
@@ -385,4 +462,6 @@
   cursor: pointer;
 }
 
-.backBtn:hover { background: var(--color-card); }
+.backBtn:hover {
+  background: var(--color-card);
+}
