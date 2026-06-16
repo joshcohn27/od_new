@@ -1,0 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --color-navy:  #1e2d3d;
+  --color-green: #3a7d44;
+  --color-amber: #d4820a;
+  --color-red:   #c0392b;
+  --color-bg:    #f7f5f0;
+  --color-card:  #e8edf2;
+  --color-border: #d0d7de;
+  --color-muted:  #6b7a8d;
+
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Fira Mono', monospace;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-navy);
+  -webkit-font-smoothing: antialiased;
+}
+
+input, select, textarea, button {
+  font-family: inherit;
+}
