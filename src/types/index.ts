@@ -16,8 +16,9 @@ export interface Staff {
 
 export interface Night {
   id: string;
-  label: string; // e.g. "Night 1", "July 4", whatever user wants
+  label: string; // optional note — display name is computed as "Day N" from position
   typeId: NightTypeId;
+  allStaffOnDuty?: boolean; // if true: all staff assigned, excluded from fairness accounting
 }
 
 export interface ScheduleConfig {

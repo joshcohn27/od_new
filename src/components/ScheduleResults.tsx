@@ -54,6 +54,7 @@ export default function ScheduleResults({ schedule, staff, perNight, onRegenerat
   const maxWeighted = Math.max(...localSchedule.stats.map((s) => s.weightedTotal));
   const minWeighted = Math.min(...localSchedule.stats.map((s) => s.weightedTotal));
   const spread = maxWeighted - minWeighted;
+  const scoredDayCount = localSchedule.assignments.filter((a) => !a.night.allStaffOnDuty).length;
 
   return (
     <div className={styles.container}>
@@ -61,7 +62,7 @@ export default function ScheduleResults({ schedule, staff, perNight, onRegenerat
         <div className={styles.headerLeft}>
           <h2>Generated Schedule</h2>
           <span className={styles.meta}>
-            {localSchedule.assignments.length} nights &middot; {staff.length} staff &middot; {perNight}/night
+            {localSchedule.assignments.length} days &middot; {scoredDayCount} scored &middot; {staff.length} staff &middot; {perNight}/night
           </span>
         </div>
         <div className={styles.headerActions}>
@@ -88,7 +89,7 @@ export default function ScheduleResults({ schedule, staff, perNight, onRegenerat
           type="button"
         >
           Fairness
-          {spread > 1 && <span className={styles.warningDot} title="Weighted spread &gt; 1" />}
+          {spread > 2 && <span className={styles.warningDot} title="Weighted spread &gt; 2" />}
         </button>
       </div>
 
@@ -107,27 +108,42 @@ export default function ScheduleResults({ schedule, staff, perNight, onRegenerat
                 </tr>
               </thead>
               <tbody>
-                {localSchedule.assignments.map(({ night, assigned }) => {
+                {localSchedule.assignments.map(({ night, assigned }, dayIdx) => {
+                  const dayLabel = `Day ${dayIdx + 1}${night.label ? ` — ${night.label}` : ''}`;
+                  if (night.allStaffOnDuty) {
+                    return (
+                      <tr key={night.id} className={styles.allStaffNightRow}>
+                        <td className={styles.nightLabel}>{dayLabel}</td>
+                        <td>
+                          <span className={`${styles.pill} ${styles['pill-allstaff']}`}>
+                            All staff
+                          </span>
+                        </td>
+                        <td colSpan={perNight} className={styles.allStaffCell}>
+                          All staff on duty
+                        </td>
+                      </tr>
+                    );
+                  }
                   const nt = NIGHT_TYPE_MAP[night.typeId];
                   return (
                     <tr key={night.id}>
-                      <td className={styles.nightLabel}>{night.label}</td>
+                      <td className={styles.nightLabel}>{dayLabel}</td>
                       <td>
                         <span className={`${styles.pill} ${styles[`pill-${nt.color}`]}`}>
                           {nt.shortLabel}
                         </span>
                       </td>
-                      {assigned.map((s, idx) => (
+                      {assigned.map((s, slotIdx) => (
                         <td
-                          key={idx}
-                          className={`${styles.staffCell} ${overrideNight === night.id && overrideSlot === idx ? styles.cellActive : ''}`}
-                          onClick={() => handleCellClick(night.id, idx)}
+                          key={slotIdx}
+                          className={`${styles.staffCell} ${overrideNight === night.id && overrideSlot === slotIdx ? styles.cellActive : ''}`}
+                          onClick={() => handleCellClick(night.id, slotIdx)}
                         >
                           <span className={styles.staffName}>{s.name}</span>
                           <span className={styles.staffBunk}>{s.bunk}</span>
                         </td>
                       ))}
-                      {/* Pad if fewer than perNight */}
                       {Array.from({ length: perNight - assigned.length }, (_, i) => (
                         <td key={`pad-${i}`} className={styles.staffCell} />
                       ))}
@@ -144,11 +160,11 @@ export default function ScheduleResults({ schedule, staff, perNight, onRegenerat
         <div className={styles.fairnessSection}>
           <div className={styles.fairnessMeta}>
             <span className={styles.spreadLabel}>Weighted spread:</span>
-            <span className={`${styles.spreadValue} ${spread > 1 ? styles.spreadWarn : styles.spreadOk}`}>
+            <span className={`${styles.spreadValue} ${spread > 2 ? styles.spreadWarn : styles.spreadOk}`}>
               {spread.toFixed(2)}
             </span>
             <span className={styles.spreadHint}>
-              ({spread <= 0.5 ? 'Excellent' : spread <= 1 ? 'Good' : 'Consider regenerating'})
+              ({spread <= 0.5 ? 'Excellent' : spread <= 1 ? 'Good' : spread <= 2 ? 'Fair' : 'Consider regenerating'})
             </span>
           </div>
 

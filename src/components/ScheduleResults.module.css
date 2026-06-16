@@ -157,10 +157,21 @@
   white-space: nowrap;
 }
 
-.pill-meeting { background: #dbeafe; color: #1d4ed8; }
-.pill-closed  { background: #fce7f3; color: #9d174d; }
-.pill-open    { background: #d1fae5; color: #065f46; }
-.pill-heavy   { background: #fef3c7; color: #92400e; }
+.pill-meeting  { background: #dbeafe; color: #1d4ed8; }
+.pill-closed   { background: #fce7f3; color: #9d174d; }
+.pill-open     { background: #d1fae5; color: #065f46; }
+.pill-heavy    { background: #fef3c7; color: #92400e; }
+.pill-allstaff { background: #f3f4f6; color: #6b7280; }
+
+/* All-staff-on-duty rows */
+.allStaffNightRow { background: #f9fafb; }
+
+.allStaffCell {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  font-style: italic;
+}
 
 /* Staff cells */
 .staffCell {
