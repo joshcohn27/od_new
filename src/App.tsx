@@ -58,7 +58,23 @@ export default function App() {
     }
   }
 
-  const currentStepIndex = STEPS.findIndex((s) => s.id === step);
+  // If we persisted 'generate' step but schedule is gone (e.g. page refresh), fall back to nights.
+  const effectiveStep: AppStep = (step === 'generate' && !schedule) ? 'setup-nights' : step;
+
+  const currentStepIndex = STEPS.findIndex((s) => s.id === effectiveStep);
+
+  function isNavigable(i: number): boolean {
+    if (i === 0) return true;
+    if (i === 1) return staff.length >= perNight;
+    if (i === 2) return schedule !== null;
+    return false;
+  }
+
+  function handleStepClick(i: number) {
+    if (!isNavigable(i)) return;
+    if (STEPS[i].id === effectiveStep) return;
+    setStep(STEPS[i].id);
+  }
 
   return (
     <div className={styles.app}>
@@ -72,31 +88,35 @@ export default function App() {
             </div>
           </div>
           <nav className={styles.steps}>
-            {STEPS.map((s, i) => (
-              <div
-                key={s.id}
-                className={`${styles.stepItem} ${
-                  i === currentStepIndex
-                    ? styles.stepActive
-                    : i < currentStepIndex
-                    ? styles.stepDone
-                    : styles.stepFuture
-                }`}
-              >
-                <span className={styles.stepNum}>{i + 1}</span>
-                <span className={styles.stepLabel}>{s.label}</span>
-              </div>
-            ))}
+            {STEPS.map((s, i) => {
+              const navigable = isNavigable(i);
+              return (
+                <div
+                  key={s.id}
+                  className={`${styles.stepItem} ${
+                    i === currentStepIndex
+                      ? styles.stepActive
+                      : i < currentStepIndex
+                      ? styles.stepDone
+                      : styles.stepFuture
+                  } ${navigable && i !== currentStepIndex ? styles.stepClickable : styles.stepUnclickable}`}
+                  onClick={() => handleStepClick(i)}
+                >
+                  <span className={styles.stepNum}>{i + 1}</span>
+                  <span className={styles.stepLabel}>{s.label}</span>
+                </div>
+              );
+            })}
           </nav>
           <button className={styles.resetBtn} onClick={resetAll} type="button">
-            Reset
+            Restart
           </button>
         </div>
       </header>
 
       <main className={styles.main}>
         <div className={styles.card}>
-          {step === 'setup-staff' && (
+          {effectiveStep === 'setup-staff' && (
             <StaffSetup
               staff={staff}
               perNight={perNight}
@@ -108,7 +128,7 @@ export default function App() {
             />
           )}
 
-          {step === 'setup-nights' && (
+          {effectiveStep === 'setup-nights' && (
             <NightSetup
               nights={nights}
               onNightsChange={setNights}
@@ -117,12 +137,13 @@ export default function App() {
             />
           )}
 
-          {step === 'generate' && schedule && (
+          {effectiveStep === 'generate' && schedule && (
             <ScheduleResults
               schedule={schedule}
               staff={staff}
               perNight={perNight}
               onRegenerate={handleRegenerate}
+              onNewSchedule={() => { setSchedule(null); setStep('setup-staff'); }}
               onBack={() => setStep('setup-nights')}
             />
           )}

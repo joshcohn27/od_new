@@ -8,6 +8,7 @@ interface Props {
   staff: Staff[];
   perNight: number;
   onRegenerate: () => void;
+  onNewSchedule: () => void;
   onBack: () => void;
 }
 
@@ -71,7 +72,7 @@ function rebuildStats(schedule: GeneratedSchedule, staff: Staff[]): StaffStats[]
   }));
 }
 
-export default function ScheduleResults({ schedule, staff, perNight, onRegenerate, onBack }: Props) {
+export default function ScheduleResults({ schedule, staff, perNight, onRegenerate, onNewSchedule, onBack }: Props) {
   const [overrideNight, setOverrideNight] = useState<string | null>(null);
   const [overrideSlot, setOverrideSlot] = useState<number | null>(null);
   const [localSchedule, setLocalSchedule] = useState(schedule);
@@ -154,6 +155,9 @@ export default function ScheduleResults({ schedule, staff, perNight, onRegenerat
         <div className={styles.headerActions}>
           <button className={styles.regenBtn} onClick={onRegenerate} type="button">
             Regenerate
+          </button>
+          <button className={styles.newScheduleBtn} onClick={onNewSchedule} type="button">
+            New Schedule
           </button>
           <button className={styles.exportBtn} onClick={downloadCSV} type="button">
             Export CSV

@@ -45,6 +45,22 @@
   background: var(--color-card);
 }
 
+.newScheduleBtn {
+  padding: 0.5rem 1rem;
+  background: white;
+  border: 1.5px solid var(--color-border);
+  border-radius: 5px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.newScheduleBtn:hover {
+  background: var(--color-card);
+  color: var(--color-navy);
+}
+
 .exportBtn {
   padding: 0.5rem 1rem;
   background: var(--color-green);
@@ -157,7 +173,9 @@
   font-family: var(--font-mono);
   font-size: 0.8125rem;
   color: var(--color-navy);
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  max-width: 140px;
 }
 
 .schedTable td {

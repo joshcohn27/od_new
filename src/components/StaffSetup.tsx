@@ -154,7 +154,12 @@ export default function StaffSetup({
           <input
             className={styles.nameInput}
             value={newName}
-            onChange={(e) => setNewName(e.target.value)}
+            onChange={(e) => {
+              setNewName(e.target.value);
+              if (e.target.value && !newBunk && staff.length > 0) {
+                setNewBunk(staff[staff.length - 1].bunk);
+              }
+            }}
             onKeyDown={(e) => e.key === 'Enter' && addOne()}
             placeholder="Name"
           />
