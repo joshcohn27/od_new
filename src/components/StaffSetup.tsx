@@ -112,7 +112,7 @@ export default function StaffSetup({
               <span className={styles.toggleHint}>
                 {bunkRestriction
                   ? 'Staff can only OD their own bunk'
-                  : 'Staff can OD any night'}
+                  : 'Staff can OD any bunk'}
               </span>
               <span className={styles.bunkHint}>
                 When on, OD slot number matches bunk number (e.g. bunk M1, O1, S1 all fill OD slot 1).

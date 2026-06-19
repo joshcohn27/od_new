@@ -21,11 +21,18 @@ export interface Night {
   allStaffOnDuty?: boolean; // if true: all staff assigned, excluded from fairness accounting
 }
 
+export interface FrozenAssignment {
+  nightId: string;
+  slotIndex: number; // 0-based
+  staff: Staff;
+}
+
 export interface ScheduleConfig {
   staff: Staff[];
   nights: Night[];
   perNight: number;
   bunkRestriction: boolean; // true = can only OD own bunk
+  frozenAssignments?: FrozenAssignment[];
 }
 
 export interface AssignedNight {

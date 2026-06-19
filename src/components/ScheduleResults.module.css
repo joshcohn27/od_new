@@ -236,6 +236,7 @@
   cursor: pointer;
   border-radius: 4px;
   transition: background 0.1s;
+  position: relative;
 }
 
 .staffCell:hover {
@@ -244,6 +245,15 @@
 
 .cellActive {
   background: #dbeafe !important;
+}
+
+.frozenCell {
+  background: #fef9ee !important;
+  border-left: 3px solid var(--color-amber);
+}
+
+.frozenCell:hover {
+  background: #fef3c7 !important;
 }
 
 .staffName {
@@ -258,6 +268,57 @@
   font-size: 0.7rem;
   color: var(--color-muted);
   font-family: var(--font-mono);
+}
+
+.lockBtn {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0.1rem 0.15rem;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.staffCell:hover .lockBtn,
+.frozenCell .lockBtn {
+  opacity: 1;
+}
+
+.lockBtn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* Frozen summary */
+.frozenSummary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--color-amber);
+  font-weight: 500;
+}
+
+.clearLocksBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  font-weight: 500;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.clearLocksBtn:hover {
+  color: var(--color-navy);
 }
 
 /* Fairness section */

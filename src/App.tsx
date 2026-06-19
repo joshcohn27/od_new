@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { Staff, Night, AppStep, GeneratedSchedule } from './types';
+import type { Staff, Night, AppStep, GeneratedSchedule, FrozenAssignment } from './types';
 import { generateSchedule } from './utils/scheduler';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import StaffSetup from './components/StaffSetup';
@@ -23,14 +23,14 @@ export default function App() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const runGenerate = useCallback(() => {
+  const runGenerate = useCallback((frozen: FrozenAssignment[] = []) => {
     setGenerating(true);
     setError(null);
     // Defer to next tick so spinner can render
     setTimeout(() => {
       try {
         const result = generateSchedule(
-          { staff, nights, perNight, bunkRestriction },
+          { staff, nights, perNight, bunkRestriction, frozenAssignments: Array.isArray(frozen) ? frozen : [] },
           800
         );
         setSchedule(result);
@@ -43,8 +43,8 @@ export default function App() {
     }, 30);
   }, [staff, nights, perNight, bunkRestriction, setStep]);
 
-  function handleRegenerate() {
-    runGenerate();
+  function handleRegenerate(frozen: FrozenAssignment[]) {
+    runGenerate(frozen);
   }
 
   function resetAll() {

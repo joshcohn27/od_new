@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { GeneratedSchedule, Staff, NightTypeId, StaffStats } from '../types';
+import type { GeneratedSchedule, Staff, NightTypeId, StaffStats, FrozenAssignment } from '../types';
 import { NIGHT_TYPES, NIGHT_TYPE_MAP, exportToCSV } from '../utils/scheduler';
 import styles from './ScheduleResults.module.css';
 
@@ -7,7 +7,7 @@ interface Props {
   schedule: GeneratedSchedule;
   staff: Staff[];
   perNight: number;
-  onRegenerate: () => void;
+  onRegenerate: (frozen: FrozenAssignment[]) => void;
   onNewSchedule: () => void;
   onBack: () => void;
 }
@@ -77,12 +77,36 @@ export default function ScheduleResults({ schedule, staff, perNight, onRegenerat
   const [overrideSlot, setOverrideSlot] = useState<number | null>(null);
   const [localSchedule, setLocalSchedule] = useState(schedule);
   const [activeTab, setActiveTab] = useState<'schedule' | 'fairness'>('schedule');
+  const [frozenSlots, setFrozenSlots] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setLocalSchedule(schedule);
     setOverrideNight(null);
     setOverrideSlot(null);
   }, [schedule]);
+
+  function toggleFreeze(nightId: string, slotIdx: number) {
+    const key = `${nightId}:${slotIdx}`;
+    setFrozenSlots((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function handleRegenerate() {
+    const frozen: FrozenAssignment[] = [];
+    for (const { night, assigned } of localSchedule.assignments) {
+      if (night.allStaffOnDuty) continue;
+      for (let i = 0; i < assigned.length; i++) {
+        if (frozenSlots.has(`${night.id}:${i}`)) {
+          frozen.push({ nightId: night.id, slotIndex: i, staff: assigned[i] });
+        }
+      }
+    }
+    onRegenerate(frozen);
+  }
 
   function handleCellClick(nightId: string, slotIdx: number) {
     setOverrideNight(nightId);
@@ -153,8 +177,8 @@ export default function ScheduleResults({ schedule, staff, perNight, onRegenerat
         </div>
 
         <div className={styles.headerActions}>
-          <button className={styles.regenBtn} onClick={onRegenerate} type="button">
-            Regenerate
+          <button className={styles.regenBtn} onClick={handleRegenerate} type="button">
+            Regenerate{frozenSlots.size > 0 ? ` (${frozenSlots.size} locked)` : ''}
           </button>
           <button className={styles.newScheduleBtn} onClick={onNewSchedule} type="button">
             New Schedule
@@ -186,7 +210,7 @@ export default function ScheduleResults({ schedule, staff, perNight, onRegenerat
 
       {activeTab === 'schedule' && (
         <div className={styles.scheduleSection}>
-          <p className={styles.hint}>Click any name to swap it out.</p>
+          <p className={styles.hint}>Click any name to swap. Hover a cell to lock/unlock it for regeneration.</p>
 
           <div className={styles.tableWrap}>
             <table className={styles.schedTable}>
@@ -233,19 +257,31 @@ export default function ScheduleResults({ schedule, staff, perNight, onRegenerat
                         </span>
                       </td>
 
-                      {assigned.map((s, slotIdx) => (
-                        <td
-                          key={slotIdx}
-                          className={`${styles.staffCell} ${overrideNight === night.id && overrideSlot === slotIdx
-                              ? styles.cellActive
-                              : ''
-                            }`}
-                          onClick={() => handleCellClick(night.id, slotIdx)}
-                        >
-                          <span className={styles.staffName}>{s.name}</span>
-                          <span className={styles.staffBunk}>{s.bunk}</span>
-                        </td>
-                      ))}
+                      {assigned.map((s, slotIdx) => {
+                        const isFrozen = frozenSlots.has(`${night.id}:${slotIdx}`);
+                        return (
+                          <td
+                            key={slotIdx}
+                            className={[
+                              styles.staffCell,
+                              isFrozen ? styles.frozenCell : '',
+                              overrideNight === night.id && overrideSlot === slotIdx ? styles.cellActive : '',
+                            ].filter(Boolean).join(' ')}
+                            onClick={() => handleCellClick(night.id, slotIdx)}
+                          >
+                            <span className={styles.staffName}>{s.name}</span>
+                            <span className={styles.staffBunk}>{s.bunk}</span>
+                            <button
+                              className={styles.lockBtn}
+                              onClick={(e) => { e.stopPropagation(); toggleFreeze(night.id, slotIdx); }}
+                              type="button"
+                              title={isFrozen ? 'Unfreeze this slot' : 'Freeze this slot'}
+                            >
+                              {isFrozen ? '🔒' : '🔓'}
+                            </button>
+                          </td>
+                        );
+                      })}
 
                       {Array.from({ length: perNight - assigned.length }, (_, i) => (
                         <td key={`pad-${i}`} className={styles.staffCell} />
@@ -256,6 +292,19 @@ export default function ScheduleResults({ schedule, staff, perNight, onRegenerat
               </tbody>
             </table>
           </div>
+
+          {frozenSlots.size > 0 && (
+            <div className={styles.frozenSummary}>
+              <span>{frozenSlots.size} slot{frozenSlots.size !== 1 ? 's' : ''} frozen</span>
+              <button
+                className={styles.clearLocksBtn}
+                onClick={() => setFrozenSlots(new Set())}
+                type="button"
+              >
+                Clear all locks
+              </button>
+            </div>
+          )}
         </div>
       )}
 

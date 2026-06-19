@@ -63,6 +63,60 @@
 .pill-heavy    { background: #fef3c7; color: #92400e; }
 .pill-allstaff { background: #f3f4f6; color: #6b7280; }
 
+/* Preset */
+.presetRow {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+}
+
+.presetBtn {
+  padding: 0.4rem 1rem;
+  background: var(--color-navy);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.presetBtn:hover { opacity: 0.88; }
+
+.presetWarn {
+  font-size: 0.8125rem;
+  color: var(--color-amber);
+  font-weight: 500;
+}
+
+.presetConfirmBtn {
+  padding: 0.3rem 0.75rem;
+  background: var(--color-navy);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.presetConfirmBtn:hover { opacity: 0.88; }
+
+.presetCancelBtn {
+  padding: 0.3rem 0.75rem;
+  background: none;
+  color: var(--color-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.presetCancelBtn:hover { background: var(--color-card); }
+
 /* Bulk import */
 .bulkToggleRow {
   display: flex;

@@ -1,4 +1,5 @@
 import type {
+  FrozenAssignment,
   NightTypeConfig,
   NightTypeId,
   ScheduleConfig,
@@ -220,6 +221,9 @@ function bestCandidateIdx(
 
 function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
   const { staff, nights, perNight, bunkRestriction } = config;
+  const frozenList: FrozenAssignment[] = Array.isArray(config.frozenAssignments)
+    ? config.frozenAssignments
+    : [];
   const rng = makePrng(seed);
 
   const load: Record<string, number> = {};
@@ -258,6 +262,9 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
       for (const s of prevScored[prevScored.length - 2].assigned) blocked.add(s.id);
     }
 
+    const nightFrozen = frozenList.filter((f) => f.nightId === night.id);
+    const frozenIds = new Set(nightFrozen.map((f) => f.staff.id));
+
     const selected: Staff[] = [];
 
     if (bunkRestriction) {
@@ -269,14 +276,24 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
 
       const slotPick: Record<number, Staff> = {};
 
-      for (const slot of slotOrder) {
-        const alreadyPicked = Object.values(slotPick);
+      // Pre-fill frozen slots (slotIndex is 0-based; slot keys are 1-based bunk numbers).
+      for (const f of nightFrozen) {
+        slotPick[f.slotIndex + 1] = f.staff;
+      }
 
-        let pool = staff.filter((s) => getBunkNumber(s.bunk) === slot && !blocked.has(s.id));
+      for (const slot of slotOrder) {
+        if (slotPick[slot] !== undefined) continue; // frozen — skip selection
+
+        const alreadyPicked = Object.values(slotPick);
+        const pickedIds = new Set(alreadyPicked.map((s) => s.id));
+
+        let pool = staff.filter(
+          (s) => getBunkNumber(s.bunk) === slot && !blocked.has(s.id) && !pickedIds.has(s.id)
+        );
 
         // If the no-consecutive block makes this slot impossible, relax the block.
         if (pool.length === 0) {
-          pool = staff.filter((s) => getBunkNumber(s.bunk) === slot);
+          pool = staff.filter((s) => getBunkNumber(s.bunk) === slot && !pickedIds.has(s.id));
         }
 
         if (pool.length === 0) return null;
@@ -332,66 +349,85 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
         selected.push(slotPick[slot]);
       }
     } else {
-      let candidates: Staff[] = staff.filter((s) => !blocked.has(s.id));
-
-      // If the no-consecutive block makes the night impossible, relax the block.
-      if (candidates.length < perNight) {
-        candidates = [...staff];
+      // Pre-populate frozen positions; null slots will be filled by selection.
+      const selectedArr: (Staff | null)[] = Array(perNight).fill(null);
+      for (const f of nightFrozen) {
+        if (f.slotIndex < perNight) selectedArr[f.slotIndex] = f.staff;
       }
+      const prefilled = selectedArr.filter(Boolean) as Staff[];
+      const unfrozenCount = perNight - prefilled.length;
 
-      // Heavy nights: fewest heavy nights first, then lowest raw total.
-      candidates = applyHeavyFairnessFilter(
-        candidates,
-        night.typeId,
-        rawCount,
-        byType,
-        perNight
-      );
-
-      // Other night types: spread specific type count.
-      candidates = applyTypeSpreadFilter(candidates, night.typeId, byType, perNight);
-
-      candidates = shuffleArray(candidates, rng);
-
-      candidates.sort((a, b) => {
-        if (night.typeId === 'openHeavy') {
-          const heavyDiff = byType[a.id].openHeavy - byType[b.id].openHeavy;
-          if (heavyDiff !== 0) return heavyDiff;
-
-          const rawDiff = rawCount[a.id] - rawCount[b.id];
-          if (rawDiff !== 0) return rawDiff;
-        }
-
-        const wDiff = load[a.id] - load[b.id];
-        if (Math.abs(wDiff) > 0.001) return wDiff;
-
-        const countDiff = rawCount[a.id] - rawCount[b.id];
-        if (countDiff !== 0) return countDiff;
-
-        return byType[a.id][night.typeId] - byType[b.id][night.typeId];
-      });
-
-      const minCount = Math.min(...candidates.map((s) => rawCount[s.id]));
-      const countFiltered =
-        night.typeId === 'openHeavy'
-          ? candidates
-          : candidates.filter((s) => rawCount[s.id] <= minCount + 1);
-
-      const pool = countFiltered.length >= perNight ? countFiltered : candidates;
-      const remaining = [...pool];
-
-      while (selected.length < perNight && remaining.length > 0) {
-        const idx = bestCandidateIdx(
-          remaining,
-          selected,
-          load,
-          rawCount,
-          byType,
-          night.typeId,
-          pairings
+      if (unfrozenCount > 0) {
+        let candidates: Staff[] = staff.filter(
+          (s) => !blocked.has(s.id) && !frozenIds.has(s.id)
         );
 
-        selected.push(remaining.splice(idx, 1)[0]!);
+        // If the no-consecutive block makes the night impossible, relax the block.
+        if (candidates.length < unfrozenCount) {
+          candidates = staff.filter((s) => !frozenIds.has(s.id));
+        }
+
+        // Heavy nights: fewest heavy nights first, then lowest raw total.
+        candidates = applyHeavyFairnessFilter(
+          candidates,
+          night.typeId,
+          rawCount,
+          byType,
+          unfrozenCount
+        );
+
+        // Other night types: spread specific type count.
+        candidates = applyTypeSpreadFilter(candidates, night.typeId, byType, unfrozenCount);
+
+        candidates = shuffleArray(candidates, rng);
+
+        candidates.sort((a, b) => {
+          if (night.typeId === 'openHeavy') {
+            const heavyDiff = byType[a.id].openHeavy - byType[b.id].openHeavy;
+            if (heavyDiff !== 0) return heavyDiff;
+
+            const rawDiff = rawCount[a.id] - rawCount[b.id];
+            if (rawDiff !== 0) return rawDiff;
+          }
+
+          const wDiff = load[a.id] - load[b.id];
+          if (Math.abs(wDiff) > 0.001) return wDiff;
+
+          const countDiff = rawCount[a.id] - rawCount[b.id];
+          if (countDiff !== 0) return countDiff;
+
+          return byType[a.id][night.typeId] - byType[b.id][night.typeId];
+        });
+
+        const minCount = Math.min(...candidates.map((s) => rawCount[s.id]));
+        const countFiltered =
+          night.typeId === 'openHeavy'
+            ? candidates
+            : candidates.filter((s) => rawCount[s.id] <= minCount + 1);
+
+        const pool = countFiltered.length >= unfrozenCount ? countFiltered : candidates;
+        const remaining = [...pool];
+        const currentSelected = [...prefilled];
+
+        for (let i = 0; i < perNight && remaining.length > 0; i++) {
+          if (selectedArr[i] !== null) continue;
+          const idx = bestCandidateIdx(
+            remaining,
+            currentSelected,
+            load,
+            rawCount,
+            byType,
+            night.typeId,
+            pairings
+          );
+          const pick = remaining.splice(idx, 1)[0]!;
+          selectedArr[i] = pick;
+          currentSelected.push(pick);
+        }
+      }
+
+      for (const s of selectedArr) {
+        if (s !== null) selected.push(s);
       }
     }
 
@@ -427,6 +463,9 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
 
 function validateSchedule(schedule: GeneratedSchedule, config: ScheduleConfig): ValidationResult {
   const { bunkRestriction, staff } = config;
+  const frozenList: FrozenAssignment[] = Array.isArray(config.frozenAssignments)
+    ? config.frozenAssignments
+    : [];
   const messages: string[] = [];
   let hardFail = false;
   let qualityFail = false;
@@ -512,6 +551,11 @@ function validateSchedule(schedule: GeneratedSchedule, config: ScheduleConfig): 
 
     for (const s of curr.assigned) {
       if (prevIds.has(s.id)) {
+        // Frozen staff may legitimately appear on consecutive nights.
+        const isFrozen = frozenList.some(
+          (f) => f.nightId === curr.night.id && f.staff.id === s.id
+        );
+        if (isFrozen) continue;
         messages.push(
           `[d] FAIL: ${s.name} in consecutive nights "${prev.night.label}" and "${curr.night.label}"`
         );

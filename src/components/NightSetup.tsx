@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Night, NightTypeId } from '../types';
 import { NIGHT_TYPES, NIGHT_TYPE_MAP } from '../utils/scheduler';
+import { SESSION_1_2026 } from '../utils/presets';
 import styles from './NightSetup.module.css';
 
 interface Props {
@@ -39,6 +40,7 @@ export default function NightSetup({ nights, onNightsChange, onBack, onNext }: P
   const [showBulk, setShowBulk] = useState(false);
   const [bulkText, setBulkText] = useState('');
   const [skippedCount, setSkippedCount] = useState<number | null>(null);
+  const [showPresetConfirm, setShowPresetConfirm] = useState(false);
 
   function addDay() {
     const isAllStaff = nextType === 'allStaff';
@@ -88,6 +90,19 @@ export default function NightSetup({ nights, onNightsChange, onBack, onNext }: P
 
   function clearAll() {
     if (confirm('Clear all days?')) onNightsChange([]);
+  }
+
+  function loadPreset() {
+    if (nights.length > 0) {
+      setShowPresetConfirm(true);
+    } else {
+      applyPreset();
+    }
+  }
+
+  function applyPreset() {
+    onNightsChange(SESSION_1_2026.map((n) => ({ ...n, id: generateId() })));
+    setShowPresetConfirm(false);
   }
 
   function handleDragStart(id: string) { setDragId(id); }
@@ -145,6 +160,24 @@ export default function NightSetup({ nights, onNightsChange, onBack, onNext }: P
           </button>
         </div>
       )}
+
+      {/* Preset */}
+      <div className={styles.presetRow}>
+        <button className={styles.presetBtn} onClick={loadPreset} type="button">
+          Load Session 1 2026
+        </button>
+        {showPresetConfirm && (
+          <>
+            <span className={styles.presetWarn}>This will replace your current nights.</span>
+            <button className={styles.presetConfirmBtn} onClick={applyPreset} type="button">
+              Confirm
+            </button>
+            <button className={styles.presetCancelBtn} onClick={() => setShowPresetConfirm(false)} type="button">
+              Cancel
+            </button>
+          </>
+        )}
+      </div>
 
       {/* Bulk import */}
       <div>
