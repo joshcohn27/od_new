@@ -46,6 +46,7 @@ export default function StaffSetup({
   const [showBulk, setShowBulk] = useState(false);
   const [newName, setNewName] = useState('');
   const [newBunk, setNewBunk] = useState('');
+  const [showInfo, setShowInfo] = useState(false);
 
   // Derive unique bunks from current staff
   const bunks = Array.from(new Set(staff.map((s) => s.bunk).filter(Boolean))).sort();
@@ -82,9 +83,56 @@ export default function StaffSetup({
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h2>Staff Roster</h2>
+        <div className={styles.headerTop}>
+          <h2>Staff Roster</h2>
+          <button
+            className={styles.infoBtn}
+            onClick={() => setShowInfo(true)}
+            type="button"
+            aria-label="How to use this app"
+            title="How to use this app"
+          >
+            i
+          </button>
+        </div>
         <p className={styles.subtitle}>Add staff members and their bunk assignments.</p>
       </div>
+
+      {showInfo && (
+        <div className={styles.infoOverlay} onClick={() => setShowInfo(false)}>
+          <div className={styles.infoModal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.infoModalHeader}>
+              <h3>How to use this app</h3>
+              <button
+                className={styles.infoModalClose}
+                onClick={() => setShowInfo(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+            <div className={styles.infoModalBody}>
+              <ol>
+                <li>
+                  <strong>Step 1:</strong> Add your staff and configure slots per night and bunk
+                  restriction.
+                </li>
+                <li>
+                  <strong>Step 2:</strong> Add your nights, set types, and mark any staff
+                  unavailable per night.
+                </li>
+                <li>
+                  <strong>Step 3:</strong> Generate the schedule.
+                </li>
+                <li>
+                  <strong>Step 4:</strong> On the results grid, freeze a slot to lock someone in,
+                  or lock out a slot to exclude someone from it on regeneration.
+                </li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className={styles.globalConfig}>
         <label className={styles.configItem}>

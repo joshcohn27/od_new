@@ -1,5 +1,6 @@
 import type {
   FrozenAssignment,
+  LockedOutAssignment,
   NightTypeConfig,
   NightTypeId,
   ScheduleConfig,
@@ -224,6 +225,9 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
   const frozenList: FrozenAssignment[] = Array.isArray(config.frozenAssignments)
     ? config.frozenAssignments
     : [];
+  const lockedOutList: LockedOutAssignment[] = Array.isArray(config.lockedOutAssignments)
+    ? config.lockedOutAssignments
+    : [];
   const rng = makePrng(seed);
 
   const load: Record<string, number> = {};
@@ -239,7 +243,8 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
     for (const t of staff) pairings[s.id][t.id] = 0;
   }
 
-  const assignments: { night: (typeof nights)[number]; assigned: Staff[] }[] = [];
+  const assignments: { night: (typeof nights)[number]; assigned: Staff[]; unfillable?: boolean }[] =
+    [];
 
   for (const night of nights) {
     const nightType = NIGHT_TYPE_MAP[night.typeId];
@@ -265,6 +270,12 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
     const nightFrozen = frozenList.filter((f) => f.nightId === night.id);
     const frozenIds = new Set(nightFrozen.map((f) => f.staff.id));
 
+    const unavailableIds = new Set(night.unavailableStaffIds ?? []);
+    const lockedOutBySlot = new Map(
+      lockedOutList.filter((l) => l.nightId === night.id).map((l) => [l.slotIndex, l.staffId])
+    );
+    let nightUnfillable = false;
+
     const selected: Staff[] = [];
 
     if (bunkRestriction) {
@@ -286,14 +297,32 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
 
         const alreadyPicked = Object.values(slotPick);
         const pickedIds = new Set(alreadyPicked.map((s) => s.id));
+        const slotLockedOutId = lockedOutBySlot.get(slot - 1);
 
         let pool = staff.filter(
-          (s) => getBunkNumber(s.bunk) === slot && !blocked.has(s.id) && !pickedIds.has(s.id)
+          (s) =>
+            getBunkNumber(s.bunk) === slot &&
+            !blocked.has(s.id) &&
+            !pickedIds.has(s.id) &&
+            !unavailableIds.has(s.id) &&
+            s.id !== slotLockedOutId
         );
 
         // If the no-consecutive block makes this slot impossible, relax the block.
         if (pool.length === 0) {
+          pool = staff.filter(
+            (s) =>
+              getBunkNumber(s.bunk) === slot &&
+              !pickedIds.has(s.id) &&
+              !unavailableIds.has(s.id) &&
+              s.id !== slotLockedOutId
+          );
+        }
+
+        // If unavailability/lockout makes this slot impossible, fill best-effort and flag it.
+        if (pool.length === 0) {
           pool = staff.filter((s) => getBunkNumber(s.bunk) === slot && !pickedIds.has(s.id));
+          if (pool.length > 0) nightUnfillable = true;
         }
 
         if (pool.length === 0) return null;
@@ -359,12 +388,18 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
 
       if (unfrozenCount > 0) {
         let candidates: Staff[] = staff.filter(
-          (s) => !blocked.has(s.id) && !frozenIds.has(s.id)
+          (s) => !blocked.has(s.id) && !frozenIds.has(s.id) && !unavailableIds.has(s.id)
         );
 
         // If the no-consecutive block makes the night impossible, relax the block.
         if (candidates.length < unfrozenCount) {
+          candidates = staff.filter((s) => !frozenIds.has(s.id) && !unavailableIds.has(s.id));
+        }
+
+        // If unavailability still makes the night impossible, fill best-effort and flag it.
+        if (candidates.length < unfrozenCount) {
           candidates = staff.filter((s) => !frozenIds.has(s.id));
+          if (candidates.length >= unfrozenCount) nightUnfillable = true;
         }
 
         // Heavy nights: fewest heavy nights first, then lowest raw total.
@@ -411,8 +446,21 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
 
         for (let i = 0; i < perNight && remaining.length > 0; i++) {
           if (selectedArr[i] !== null) continue;
+
+          const slotLockedOutId = lockedOutBySlot.get(i);
+          let slotPool = remaining;
+
+          if (slotLockedOutId !== undefined) {
+            const filtered = remaining.filter((s) => s.id !== slotLockedOutId);
+            if (filtered.length > 0) {
+              slotPool = filtered;
+            } else {
+              nightUnfillable = true;
+            }
+          }
+
           const idx = bestCandidateIdx(
-            remaining,
+            slotPool,
             currentSelected,
             load,
             rawCount,
@@ -420,7 +468,9 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
             night.typeId,
             pairings
           );
-          const pick = remaining.splice(idx, 1)[0]!;
+          const pick = slotPool[idx];
+          const remIdx = remaining.findIndex((s) => s.id === pick.id);
+          remaining.splice(remIdx, 1);
           selectedArr[i] = pick;
           currentSelected.push(pick);
         }
@@ -446,7 +496,7 @@ function runOnce(config: ScheduleConfig, seed: number): RunResult | null {
       }
     }
 
-    assignments.push({ night, assigned: selected });
+    assignments.push({ night, assigned: selected, unfillable: nightUnfillable });
   }
 
   const stats: StaffStats[] = staff.map((s) => ({

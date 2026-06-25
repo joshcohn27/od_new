@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import type { Night, NightTypeId } from '../types';
+import type { Night, NightTypeId, Staff } from '../types';
 import { NIGHT_TYPES, NIGHT_TYPE_MAP } from '../utils/scheduler';
 import { SESSION_1_2026 } from '../utils/presets';
 import styles from './NightSetup.module.css';
 
 interface Props {
   nights: Night[];
+  staff: Staff[];
   onNightsChange: (nights: Night[]) => void;
   onBack: () => void;
   onNext: () => void;
@@ -33,7 +34,7 @@ function parseTypeStr(raw: string): { typeId: NightTypeId; allStaffOnDuty?: true
   return null;
 }
 
-export default function NightSetup({ nights, onNightsChange, onBack, onNext }: Props) {
+export default function NightSetup({ nights, staff, onNightsChange, onBack, onNext }: Props) {
   const [nextType, setNextType] = useState<SlotType>('closed');
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -41,6 +42,7 @@ export default function NightSetup({ nights, onNightsChange, onBack, onNext }: P
   const [bulkText, setBulkText] = useState('');
   const [skippedCount, setSkippedCount] = useState<number | null>(null);
   const [showPresetConfirm, setShowPresetConfirm] = useState(false);
+  const [expandedUnavail, setExpandedUnavail] = useState<Set<string>>(new Set());
 
   function addDay() {
     const isAllStaff = nextType === 'allStaff';
@@ -61,6 +63,25 @@ export default function NightSetup({ nights, onNightsChange, onBack, onNext }: P
 
   function updateNight(id: string, patch: Partial<Night>) {
     onNightsChange(nights.map((n) => (n.id === id ? { ...n, ...patch } : n)));
+  }
+
+  function toggleExpandUnavail(id: string) {
+    setExpandedUnavail((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleUnavailableStaff(nightId: string, staffId: string) {
+    const night = nights.find((n) => n.id === nightId);
+    if (!night) return;
+    const current = night.unavailableStaffIds ?? [];
+    const next = current.includes(staffId)
+      ? current.filter((id) => id !== staffId)
+      : [...current, staffId];
+    updateNight(nightId, { unavailableStaffIds: next });
   }
 
   function applyBulk() {
@@ -225,62 +246,99 @@ export default function NightSetup({ nights, onNightsChange, onBack, onNext }: P
             <span>Type</span>
             <span>Note</span>
             <span />
+            <span />
           </div>
         )}
 
-        {nights.map((night, idx) => (
-          <div
-            key={night.id}
-            className={[
-              styles.nightRow,
-              night.allStaffOnDuty ? styles.allStaffRow : '',
-              dragOver === night.id ? styles.dragTarget : '',
-              dragId === night.id ? styles.dragging : '',
-            ].filter(Boolean).join(' ')}
-            draggable
-            onDragStart={() => handleDragStart(night.id)}
-            onDragEnter={() => handleDragEnter(night.id)}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => handleDrop(night.id)}
-            onDragEnd={() => { setDragId(null); setDragOver(null); }}
-          >
-            <span className={styles.dragHandle}>⣿</span>
-            <span className={styles.dayNum}>Day {idx + 1}</span>
-            <select
-              className={`${styles.typeSelect} ${styles[`type-${nightColor(night)}`]}`}
-              value={night.allStaffOnDuty ? 'allStaff' : night.typeId}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === 'allStaff') {
-                  updateNight(night.id, { allStaffOnDuty: true, typeId: 'closed' });
-                } else {
-                  updateNight(night.id, { allStaffOnDuty: undefined, typeId: val as NightTypeId });
-                }
-              }}
-            >
-              {NIGHT_TYPES.map((nt) => (
-                <option key={nt.id} value={nt.id}>
-                  {nt.label} (×{nt.weight})
-                </option>
-              ))}
-              <option value="allStaff">All staff on duty</option>
-            </select>
-            <input
-              className={styles.noteInput}
-              value={night.label}
-              onChange={(e) => updateNight(night.id, { label: e.target.value })}
-              placeholder="optional note"
-              disabled={!!night.allStaffOnDuty}
-            />
-            <button
-              className={styles.removeBtn}
-              onClick={() => removeNight(night.id)}
-              type="button"
-            >
-              &times;
-            </button>
-          </div>
-        ))}
+        {nights.map((night, idx) => {
+          const unavailableIds = night.unavailableStaffIds ?? [];
+          const canMarkUnavailable = staff.length > 0 && !night.allStaffOnDuty;
+          const isExpanded = expandedUnavail.has(night.id);
+
+          return (
+            <div key={night.id}>
+              <div
+                className={[
+                  styles.nightRow,
+                  night.allStaffOnDuty ? styles.allStaffRow : '',
+                  dragOver === night.id ? styles.dragTarget : '',
+                  dragId === night.id ? styles.dragging : '',
+                ].filter(Boolean).join(' ')}
+                draggable
+                onDragStart={() => handleDragStart(night.id)}
+                onDragEnter={() => handleDragEnter(night.id)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => handleDrop(night.id)}
+                onDragEnd={() => { setDragId(null); setDragOver(null); }}
+              >
+                <span className={styles.dragHandle}>⣿</span>
+                <span className={styles.dayNum}>Day {idx + 1}</span>
+                <select
+                  className={`${styles.typeSelect} ${styles[`type-${nightColor(night)}`]}`}
+                  value={night.allStaffOnDuty ? 'allStaff' : night.typeId}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'allStaff') {
+                      updateNight(night.id, { allStaffOnDuty: true, typeId: 'closed' });
+                    } else {
+                      updateNight(night.id, { allStaffOnDuty: undefined, typeId: val as NightTypeId });
+                    }
+                  }}
+                >
+                  {NIGHT_TYPES.map((nt) => (
+                    <option key={nt.id} value={nt.id}>
+                      {nt.label} (×{nt.weight})
+                    </option>
+                  ))}
+                  <option value="allStaff">All staff on duty</option>
+                </select>
+                <input
+                  className={styles.noteInput}
+                  value={night.label}
+                  onChange={(e) => updateNight(night.id, { label: e.target.value })}
+                  placeholder="optional note"
+                  disabled={!!night.allStaffOnDuty}
+                />
+                <span className={styles.unavailCell}>
+                  {canMarkUnavailable && (
+                    <button
+                      className={`${styles.unavailToggle} ${unavailableIds.length > 0 ? styles.unavailToggleActive : ''}`}
+                      onClick={() => toggleExpandUnavail(night.id)}
+                      type="button"
+                    >
+                      {unavailableIds.length > 0 ? `${unavailableIds.length} unavailable` : 'Unavailable'}
+                      {' '}
+                      {isExpanded ? '▲' : '▼'}
+                    </button>
+                  )}
+                </span>
+                <button
+                  className={styles.removeBtn}
+                  onClick={() => removeNight(night.id)}
+                  type="button"
+                >
+                  &times;
+                </button>
+              </div>
+
+              {canMarkUnavailable && isExpanded && (
+                <div className={styles.unavailPanel}>
+                  {staff.map((s) => (
+                    <label key={s.id} className={styles.unavailOption}>
+                      <input
+                        type="checkbox"
+                        checked={unavailableIds.includes(s.id)}
+                        onChange={() => toggleUnavailableStaff(night.id, s.id)}
+                      />
+                      <span>{s.name}</span>
+                      <span className={styles.unavailBunk}>{s.bunk}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {/* Persistent add-next-day row */}
         <div className={styles.addDayRow}>

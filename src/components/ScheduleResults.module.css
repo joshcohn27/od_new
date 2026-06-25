@@ -4,6 +4,16 @@
   gap: 1.25rem;
 }
 
+.warningBanner {
+  padding: 0.75rem 1rem;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  color: #92400e;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
 .topBar {
   display: flex;
   align-items: flex-start;
@@ -224,6 +234,16 @@
   background: #f9fafb;
 }
 
+/* Unfillable nights */
+.unfillableRow {
+  border-left: 3px solid var(--color-amber);
+}
+
+.unfillableIcon {
+  margin-right: 0.35rem;
+  color: var(--color-amber);
+}
+
 .allStaffCell {
   padding: 0.5rem 0.75rem;
   font-size: 0.8125rem;
@@ -256,6 +276,21 @@
   background: #fef3c7 !important;
 }
 
+.lockedOutCell {
+  background: #fef2f2 !important;
+  border-left: 3px solid var(--color-red);
+}
+
+.lockedOutCell:hover {
+  background: #fee2e2 !important;
+}
+
+.lockedOutCell .staffName,
+.lockedOutCell .staffBunk {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
 .staffName {
   display: block;
   font-weight: 600;
@@ -270,11 +305,25 @@
   font-family: var(--font-mono);
 }
 
-.lockBtn {
+.cellBtnGroup {
   position: absolute;
   top: 50%;
   right: 0.35rem;
   transform: translateY(-50%);
+  display: flex;
+  gap: 0.1rem;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.staffCell:hover .cellBtnGroup,
+.frozenCell .cellBtnGroup,
+.lockedOutCell .cellBtnGroup {
+  opacity: 1;
+}
+
+.lockBtn,
+.lockoutBtn {
   background: none;
   border: none;
   cursor: pointer;
@@ -282,17 +331,18 @@
   line-height: 1;
   padding: 0.1rem 0.15rem;
   border-radius: 3px;
-  opacity: 0;
-  transition: opacity 0.1s;
-}
-
-.staffCell:hover .lockBtn,
-.frozenCell .lockBtn {
-  opacity: 1;
 }
 
 .lockBtn:hover {
   background: rgba(0, 0, 0, 0.06);
+}
+
+.lockoutBtn:hover {
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.lockoutBtnActive {
+  color: var(--color-red);
 }
 
 /* Frozen summary */
@@ -319,6 +369,16 @@
 
 .clearLocksBtn:hover {
   color: var(--color-navy);
+}
+
+.lockedOutSummary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--color-red);
+  font-weight: 500;
 }
 
 /* Fairness section */

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { Staff, Night, AppStep, GeneratedSchedule, FrozenAssignment } from './types';
+import type { Staff, Night, AppStep, GeneratedSchedule, FrozenAssignment, LockedOutAssignment } from './types';
 import { generateSchedule } from './utils/scheduler';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import StaffSetup from './components/StaffSetup';
@@ -23,14 +23,21 @@ export default function App() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const runGenerate = useCallback((frozen: FrozenAssignment[] = []) => {
+  const runGenerate = useCallback((frozen: FrozenAssignment[] = [], lockedOut: LockedOutAssignment[] = []) => {
     setGenerating(true);
     setError(null);
     // Defer to next tick so spinner can render
     setTimeout(() => {
       try {
         const result = generateSchedule(
-          { staff, nights, perNight, bunkRestriction, frozenAssignments: Array.isArray(frozen) ? frozen : [] },
+          {
+            staff,
+            nights,
+            perNight,
+            bunkRestriction,
+            frozenAssignments: Array.isArray(frozen) ? frozen : [],
+            lockedOutAssignments: Array.isArray(lockedOut) ? lockedOut : [],
+          },
           800
         );
         setSchedule(result);
@@ -43,8 +50,8 @@ export default function App() {
     }, 30);
   }, [staff, nights, perNight, bunkRestriction, setStep]);
 
-  function handleRegenerate(frozen: FrozenAssignment[]) {
-    runGenerate(frozen);
+  function handleRegenerate(frozen: FrozenAssignment[], lockedOut: LockedOutAssignment[]) {
+    runGenerate(frozen, lockedOut);
   }
 
   function resetAll() {
@@ -131,6 +138,7 @@ export default function App() {
           {effectiveStep === 'setup-nights' && (
             <NightSetup
               nights={nights}
+              staff={staff}
               onNightsChange={setNights}
               onBack={() => setStep('setup-staff')}
               onNext={runGenerate}
