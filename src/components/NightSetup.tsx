@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Night, NightTypeId, Staff } from '../types';
 import { NIGHT_TYPES, NIGHT_TYPE_MAP } from '../utils/scheduler';
-import { SESSION_1_2026 } from '../utils/presets';
+import { SESSION_1_2026, SESSION_1_2026_START } from '../utils/presets';
+import { addDaysISO, formatShortDate } from '../utils/dates';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import styles from './NightSetup.module.css';
 
 interface Props {
@@ -43,6 +45,23 @@ export default function NightSetup({ nights, staff, onNightsChange, onBack, onNe
   const [skippedCount, setSkippedCount] = useState<number | null>(null);
   const [showPresetConfirm, setShowPresetConfirm] = useState(false);
   const [expandedUnavail, setExpandedUnavail] = useState<Set<string>>(new Set());
+  const [startDate, setStartDate] = useLocalStorage<string>('scheduler-start-date', '');
+
+  // Cascade dates onto every night, in order, whenever the start date or night order/count changes.
+  useEffect(() => {
+    if (!startDate) return;
+
+    let changed = false;
+    const updated = nights.map((n, idx) => {
+      const date = addDaysISO(startDate, idx);
+      if (n.date === date) return n;
+      changed = true;
+      return { ...n, date };
+    });
+
+    if (changed) onNightsChange(updated);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, nights]);
 
   function addDay() {
     const isAllStaff = nextType === 'allStaff';
@@ -123,6 +142,7 @@ export default function NightSetup({ nights, staff, onNightsChange, onBack, onNe
 
   function applyPreset() {
     onNightsChange(SESSION_1_2026.map((n) => ({ ...n, id: generateId() })));
+    setStartDate(SESSION_1_2026_START);
     setShowPresetConfirm(false);
   }
 
@@ -238,11 +258,29 @@ export default function NightSetup({ nights, staff, onNightsChange, onBack, onNe
         )}
       </div>
 
+      <div className={styles.startDateRow}>
+        <label className={styles.startDateLabel}>
+          <span>Session Start Date</span>
+          <input
+            type="date"
+            className={styles.startDateInput}
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </label>
+        {startDate && (
+          <span className={styles.startDateHint}>
+            Dates assigned in order starting {formatShortDate(startDate)}.
+          </span>
+        )}
+      </div>
+
       <div className={styles.nightList}>
         {nights.length > 0 && (
           <div className={styles.listHeader}>
             <span />
             <span>Day</span>
+            <span>Date</span>
             <span>Type</span>
             <span>Note</span>
             <span />
@@ -273,6 +311,7 @@ export default function NightSetup({ nights, staff, onNightsChange, onBack, onNe
               >
                 <span className={styles.dragHandle}>⣿</span>
                 <span className={styles.dayNum}>Day {idx + 1}</span>
+                <span className={styles.resolvedDate}>{formatShortDate(night.date)}</span>
                 <select
                   className={`${styles.typeSelect} ${styles[`type-${nightColor(night)}`]}`}
                   value={night.allStaffOnDuty ? 'allStaff' : night.typeId}

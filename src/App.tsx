@@ -150,6 +150,7 @@ export default function App() {
               schedule={schedule}
               staff={staff}
               perNight={perNight}
+              bunkRestriction={bunkRestriction}
               onRegenerate={handleRegenerate}
               onNewSchedule={() => { setSchedule(null); setStep('setup-staff'); }}
               onBack={() => setStep('setup-nights')}

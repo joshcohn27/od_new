@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(echo \"EXIT_CODE=$?\")",
-      "Bash(echo \"---EXIT_CODE=$?---\")"
+      "Bash(echo \"---EXIT_CODE=$?---\")",
+      "Bash(npm install *)"
     ]
   }
 }

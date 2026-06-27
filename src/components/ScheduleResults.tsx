@@ -6,14 +6,17 @@ import type {
   StaffStats,
   FrozenAssignment,
   LockedOutAssignment,
+  ScheduleConfig,
 } from '../types';
 import { NIGHT_TYPES, NIGHT_TYPE_MAP, exportToCSV } from '../utils/scheduler';
+import { exportToCalendar } from '../utils/exportCalendar';
 import styles from './ScheduleResults.module.css';
 
 interface Props {
   schedule: GeneratedSchedule;
   staff: Staff[];
   perNight: number;
+  bunkRestriction: boolean;
   onRegenerate: (frozen: FrozenAssignment[], lockedOut: LockedOutAssignment[]) => void;
   onNewSchedule: () => void;
   onBack: () => void;
@@ -79,7 +82,15 @@ function rebuildStats(schedule: GeneratedSchedule, staff: Staff[]): StaffStats[]
   }));
 }
 
-export default function ScheduleResults({ schedule, staff, perNight, onRegenerate, onNewSchedule, onBack }: Props) {
+export default function ScheduleResults({
+  schedule,
+  staff,
+  perNight,
+  bunkRestriction,
+  onRegenerate,
+  onNewSchedule,
+  onBack,
+}: Props) {
   const [overrideNight, setOverrideNight] = useState<string | null>(null);
   const [overrideSlot, setOverrideSlot] = useState<number | null>(null);
   const [localSchedule, setLocalSchedule] = useState(schedule);
@@ -189,6 +200,21 @@ export default function ScheduleResults({ schedule, staff, perNight, onRegenerat
     URL.revokeObjectURL(url);
   }
 
+  function downloadWord() {
+    const config: ScheduleConfig = {
+      staff,
+      nights: localSchedule.assignments.map((a) => a.night),
+      perNight,
+      bunkRestriction,
+    };
+
+    try {
+      exportToCalendar(localSchedule.assignments, config);
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  }
+
   const maxWeighted = Math.max(...localSchedule.stats.map((s) => s.weightedTotal));
   const minWeighted = Math.min(...localSchedule.stats.map((s) => s.weightedTotal));
   const spread = maxWeighted - minWeighted;
@@ -228,6 +254,9 @@ export default function ScheduleResults({ schedule, staff, perNight, onRegenerat
           </button>
           <button className={styles.exportBtn} onClick={downloadCSV} type="button">
             Export CSV
+          </button>
+          <button className={styles.exportWordBtn} onClick={downloadWord} type="button">
+            Export to Word
           </button>
         </div>
       </div>

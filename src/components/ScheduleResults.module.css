@@ -86,6 +86,21 @@
   opacity: 0.88;
 }
 
+.exportWordBtn {
+  padding: 0.5rem 1rem;
+  background: var(--color-navy);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.exportWordBtn:hover {
+  opacity: 0.88;
+}
+
 /* Tabs */
 .tabs {
   display: flex;

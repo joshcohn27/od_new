@@ -20,6 +20,7 @@ export interface Night {
   typeId: NightTypeId;
   allStaffOnDuty?: boolean; // if true: all staff assigned, excluded from fairness accounting
   unavailableStaffIds?: string[]; // staff who cannot be assigned on this night
+  date?: string; // ISO format YYYY-MM-DD, resolved from the session start date
 }
 
 export interface FrozenAssignment {
