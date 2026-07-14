@@ -69,6 +69,10 @@ export default function StaffSetup({
     onStaffChange(staff.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
   }
 
+  function toggleFlexible(id: string) {
+    onStaffChange(staff.map((s) => (s.id === id ? { ...s, flexibleBunk: !s.flexibleBunk } : s)));
+  }
+
   function applyBulk() {
     const parsed = parseBulk(bulkText, bunks);
     if (parsed.length) {
@@ -233,6 +237,7 @@ export default function StaffSetup({
               <tr>
                 <th>Name</th>
                 <th>Bunk</th>
+                <th>Flexible (any bunk)</th>
                 <th></th>
               </tr>
             </thead>
@@ -253,6 +258,15 @@ export default function StaffSetup({
                       onChange={(e) => updateStaff(s.id, 'bunk', e.target.value)}
                       list="bunk-suggestions"
                     />
+                  </td>
+                  <td>
+                    <label className={styles.flexCheck}>
+                      <input
+                        type="checkbox"
+                        checked={s.flexibleBunk ?? false}
+                        onChange={() => toggleFlexible(s.id)}
+                      />
+                    </label>
                   </td>
                   <td>
                     <button

@@ -12,6 +12,7 @@ export interface Staff {
   id: string;
   name: string;
   bunk: string;
+  flexibleBunk?: boolean;
 }
 
 export interface Night {

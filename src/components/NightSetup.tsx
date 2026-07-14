@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Night, NightTypeId, Staff } from '../types';
 import { NIGHT_TYPES, NIGHT_TYPE_MAP } from '../utils/scheduler';
-import { SESSION_1_2026, SESSION_1_2026_START } from '../utils/presets';
+import { SESSION_1_2026, SESSION_1_2026_START, SESSION_2_2026, SESSION_2_2026_START } from '../utils/presets';
 import { addDaysISO, formatShortDate } from '../utils/dates';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import styles from './NightSetup.module.css';
@@ -43,7 +43,7 @@ export default function NightSetup({ nights, staff, onNightsChange, onBack, onNe
   const [showBulk, setShowBulk] = useState(false);
   const [bulkText, setBulkText] = useState('');
   const [skippedCount, setSkippedCount] = useState<number | null>(null);
-  const [showPresetConfirm, setShowPresetConfirm] = useState(false);
+  const [pendingPreset, setPendingPreset] = useState<'session1' | 'session2' | null>(null);
   const [expandedUnavail, setExpandedUnavail] = useState<Set<string>>(new Set());
   const [startDate, setStartDate] = useLocalStorage<string>('scheduler-start-date', '');
 
@@ -132,18 +132,23 @@ export default function NightSetup({ nights, staff, onNightsChange, onBack, onNe
     if (confirm('Clear all days?')) onNightsChange([]);
   }
 
-  function loadPreset() {
+  function loadPreset(preset: 'session1' | 'session2') {
     if (nights.length > 0) {
-      setShowPresetConfirm(true);
+      setPendingPreset(preset);
     } else {
-      applyPreset();
+      applyPreset(preset);
     }
   }
 
-  function applyPreset() {
-    onNightsChange(SESSION_1_2026.map((n) => ({ ...n, id: generateId() })));
-    setStartDate(SESSION_1_2026_START);
-    setShowPresetConfirm(false);
+  function applyPreset(preset: 'session1' | 'session2') {
+    if (preset === 'session1') {
+      onNightsChange(SESSION_1_2026.map((n) => ({ ...n, id: generateId() })));
+      setStartDate(SESSION_1_2026_START);
+    } else {
+      onNightsChange(SESSION_2_2026.map((n) => ({ ...n, id: generateId() })));
+      setStartDate(SESSION_2_2026_START);
+    }
+    setPendingPreset(null);
   }
 
   function handleDragStart(id: string) { setDragId(id); }
@@ -204,16 +209,23 @@ export default function NightSetup({ nights, staff, onNightsChange, onBack, onNe
 
       {/* Preset */}
       <div className={styles.presetRow}>
-        <button className={styles.presetBtn} onClick={loadPreset} type="button">
+        <button className={styles.presetBtn} onClick={() => loadPreset('session1')} type="button">
           Load Session 1 2026
         </button>
-        {showPresetConfirm && (
+        <button className={styles.presetBtn} onClick={() => loadPreset('session2')} type="button">
+          Autofill Session 2
+        </button>
+        {pendingPreset && (
           <>
             <span className={styles.presetWarn}>This will replace your current nights.</span>
-            <button className={styles.presetConfirmBtn} onClick={applyPreset} type="button">
+            <button
+              className={styles.presetConfirmBtn}
+              onClick={() => applyPreset(pendingPreset)}
+              type="button"
+            >
               Confirm
             </button>
-            <button className={styles.presetCancelBtn} onClick={() => setShowPresetConfirm(false)} type="button">
+            <button className={styles.presetCancelBtn} onClick={() => setPendingPreset(null)} type="button">
               Cancel
             </button>
           </>

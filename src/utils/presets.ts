@@ -37,3 +37,34 @@ export const SESSION_1_2026: Omit<Night, 'id'>[] = SESSION_1_2026_NIGHTS.map((n,
   ...n,
   date: addDaysISO(SESSION_1_2026_START, idx),
 }));
+
+export const SESSION_2_2026_START = '2026-07-27';
+
+const SESSION_2_2026_NIGHTS: Omit<Night, 'id' | 'date'>[] = [
+  { allStaffOnDuty: true,  typeId: 'closed',        label: '' },
+  { allStaffOnDuty: false, typeId: 'closedMeeting', label: '' },
+  { allStaffOnDuty: false, typeId: 'open',          label: '' },
+  { allStaffOnDuty: false, typeId: 'open',          label: '' },
+  { allStaffOnDuty: false, typeId: 'closed',        label: '' },
+  { allStaffOnDuty: false, typeId: 'open',          label: '' },
+  { allStaffOnDuty: false, typeId: 'open',          label: '' },
+  { allStaffOnDuty: false, typeId: 'open',          label: '' },
+  { allStaffOnDuty: false, typeId: 'closedMeeting', label: '' },
+  { allStaffOnDuty: false, typeId: 'open',          label: '' },
+  { allStaffOnDuty: false, typeId: 'open',          label: '' },
+  { allStaffOnDuty: false, typeId: 'openHeavy',     label: '' },
+  { allStaffOnDuty: false, typeId: 'closed',        label: '' },
+  { allStaffOnDuty: false, typeId: 'closed',        label: '' },
+  { allStaffOnDuty: false, typeId: 'closed',        label: '' },
+  { allStaffOnDuty: false, typeId: 'openHeavy',     label: '' },
+  { allStaffOnDuty: false, typeId: 'closedMeeting', label: '' },
+  { allStaffOnDuty: false, typeId: 'open',          label: '' },
+  { allStaffOnDuty: false, typeId: 'closed',        label: '' },
+  { allStaffOnDuty: false, typeId: 'closed',        label: '' },
+  { allStaffOnDuty: true,  typeId: 'closed',        label: '' },
+];
+
+export const SESSION_2_2026: Omit<Night, 'id'>[] = SESSION_2_2026_NIGHTS.map((n, idx) => ({
+  ...n,
+  date: addDaysISO(SESSION_2_2026_START, idx),
+}));
