@@ -213,7 +213,7 @@ export default function NightSetup({ nights, staff, onNightsChange, onBack, onNe
           Load Session 1 2026
         </button>
         <button className={styles.presetBtn} onClick={() => loadPreset('session2')} type="button">
-          Autofill Session 2
+          Load Session 2 2026
         </button>
         {pendingPreset && (
           <>
